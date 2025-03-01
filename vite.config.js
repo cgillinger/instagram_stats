@@ -6,7 +6,7 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   // Lägg till base-path för att köra i undermapp
-  base: '/instagram/',
+  base: '/instagram_stats/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
