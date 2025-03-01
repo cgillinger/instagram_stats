@@ -1,0 +1,20 @@
+{
+  "Post ID": "post_id",
+  "Account ID": "account_id",
+  "Account name": "account_name",
+  "Account username": "account_username",
+  "Description": "description",
+  "Duration (sec)": "duration_seconds",
+  "Publish time": "publish_time",
+  "Post type": "post_type",
+  "Permalink": "permalink",
+  "Data comment": "data_comment",
+  "Date": "date",
+  "Reach": "post_reach",
+  "Likes": "likes",
+  "Comments": "comments",
+  "Shares": "shares",
+  "Follows": "follows",
+  "Saves": "saves",
+  "Views": "views"
+}

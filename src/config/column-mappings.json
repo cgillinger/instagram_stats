@@ -1,0 +1,96 @@
+{
+  "version": "1.0",
+  "categories": {
+    "metadata": {
+      "title": "Metadata",
+      "description": "Grundläggande information om inlägget",
+      "fields": {
+        "postId": {
+          "required": true,
+          "aliases": ["Post ID", "Inläggs-ID", "PostID"],
+          "type": "string",
+          "description": "Unikt ID för inlägget"
+        },
+        "accountId": {
+          "required": true,
+          "aliases": ["Account ID", "Konto-ID", "KontoID"],
+          "type": "string",
+          "description": "ID för Instagram-kontot"
+        },
+        "accountName": {
+          "required": true,
+          "aliases": ["Account name", "Kontonamn"],
+          "type": "string",
+          "description": "Namnet på Instagram-kontot"
+        }
+      }
+    },
+    "metrics": {
+      "title": "Mätvärden",
+      "description": "Grundläggande mätvärden för inlägg",
+      "fields": {
+        "views": {
+          "required": true,
+          "aliases": ["Views", "Visningar"],
+          "type": "number",
+          "aggregationType": "sum",
+          "description": "Antal visningar"
+        }
+      }
+    },
+    "reach": {
+      "title": "Räckvidd",
+      "description": "Mätvärden för inläggets räckvidd",
+      "fields": {
+        "reach": {
+          "required": true,
+          "aliases": ["Reach", "Räckvidd"],
+          "type": "number",
+          "aggregationType": "max",
+          "description": "Räckvidd för inlägget"
+        }
+      }
+    },
+    "engagement": {
+      "title": "Engagemang",
+      "description": "Mätvärden för användarengagemang",
+      "fields": {
+        "likes": {
+          "required": true,
+          "aliases": ["Likes", "Gilla-markeringar"],
+          "type": "number",
+          "aggregationType": "sum",
+          "description": "Antal gilla-markeringar"
+        },
+        "comments": {
+          "required": true,
+          "aliases": ["Comments", "Kommentarer"],
+          "type": "number",
+          "aggregationType": "sum",
+          "description": "Antal kommentarer"
+        },
+        "shares": {
+          "required": true,
+          "aliases": ["Shares", "Delningar"],
+          "type": "number",
+          "aggregationType": "sum",
+          "description": "Antal delningar"
+        },
+        "saves": {
+          "required": true,
+          "aliases": ["Saves", "Sparade"],
+          "type": "number",
+          "aggregationType": "sum",
+          "description": "Antal sparade inlägg"
+        },
+        "follows": {
+          "required": true,
+          "aliases": ["Follows", "Följare"],
+          "type": "number",
+          "aggregationType": "sum",
+          "description": "Antal nya följare från inlägget"
+        }
+      }
+    }
+  }
+}
