@@ -9,24 +9,23 @@ import { readColumnMappings as getStoredMappings, saveColumnMappings as storeCol
 // Standard kolumnmappningar - används när inga sparade mappningar finns
 export const DEFAULT_MAPPINGS = {
   // Metadata (visas i PostView)
-  "Post ID": "post_id",
-  "Account ID": "account_id",
-  "Account name": "account_name",
-  "Account username": "account_username",
-  "Description": "description",
-  "Publish time": "publish_time",
-  "Post type": "post_type",
-  "Permalink": "permalink",
+  "Publicerings-id": "post_id",
+  "Konto-id": "account_id",
+  "Kontonamn": "account_name",
+  "Kontots användarnamn": "account_username",
+  "Beskrivning": "description",
+  "Publiceringstid": "publish_time",
+  "Inläggstyp": "post_type",
+  "Permalänk": "permalink",
   
   // Mätvärden
-  "Views": "views",
-  "Impressions": "views", // Alternativt namn för samma fält
-  "Reach": "post_reach",
-  "Likes": "likes",
-  "Comments": "comments",
-  "Shares": "shares",
-  "Follows": "follows",
-  "Saves": "saves"
+  "Visningar": "views",
+  "Räckvidd": "post_reach",
+  "Gilla-markeringar": "likes",
+  "Kommentarer": "comments",
+  "Delningar": "shares",
+  "Följer": "follows",
+  "Sparade objekt": "saves"
 };
 
 // Beskrivande namn för användargränssnittet
@@ -57,16 +56,16 @@ export const ALTERNATIVE_NAMES = {
   "likes": ["Likes", "Gilla-markeringar", "Gilla markeringar", "likes"],
   "comments": ["Comments", "Kommentarer", "comments"],
   "shares": ["Shares", "Delningar", "shares"],
-  "follows": ["Follows", "Följare", "follows"],
-  "saves": ["Saves", "Sparade", "saves"],
-  "post_id": ["Post ID", "Inläggs-ID", "PostID", "post_id", "post-id"],
-  "account_id": ["Account ID", "Konto-ID", "KontoID", "account_id", "page_id"],
+  "follows": ["Follows", "Följer", "Följare", "follows"],
+  "saves": ["Saves", "Sparade objekt", "Sparade", "saves"],
+  "post_id": ["Post ID", "Publicerings-id", "Inläggs-ID", "PostID", "post_id", "post-id"],
+  "account_id": ["Account ID", "Konto-id", "Konto-ID", "KontoID", "account_id", "page_id"],
   "account_name": ["Account name", "Kontonamn", "Page name", "account_name"],
-  "account_username": ["Account username", "Användarnamn", "Username", "account_username"],
+  "account_username": ["Account username", "Kontots användarnamn", "Användarnamn", "Username", "account_username"],
   "description": ["Description", "Beskrivning", "description", "Caption", "caption"],
   "publish_time": ["Publish time", "Publiceringstid", "publish_time", "Date", "date", "Datum"],
-  "post_type": ["Post type", "Typ", "post_type", "Type", "type"],
-  "permalink": ["Permalink", "Länk", "permalink", "Link", "link", "URL", "url"]
+  "post_type": ["Post type", "Inläggstyp", "Typ", "post_type", "Type", "type"],
+  "permalink": ["Permalink", "Permalänk", "Länk", "permalink", "Link", "link", "URL", "url"]
 };
 
 // Gruppera kolumner för bättre översikt i ColumnMappingEditor

@@ -4,10 +4,11 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
-import { Save, AlertCircle, CheckCircle2, Loader2, Info } from 'lucide-react';
+import { Save, AlertCircle, CheckCircle2, Loader2, Info, RefreshCw } from 'lucide-react';
 import { 
   readColumnMappings, 
   saveColumnMappings, 
+  DEFAULT_MAPPINGS,
   DISPLAY_NAMES, 
   COLUMN_GROUPS,
   getAllKnownNamesForField,
@@ -18,8 +19,10 @@ export function ColumnMappingEditor() {
   const [mappings, setMappings] = useState({});
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [showExamples, setShowExamples] = useState({});
 
   // Ladda mappningar när komponenten monteras
@@ -61,6 +64,7 @@ export function ColumnMappingEditor() {
       clearMappingsCache();
       
       // Visa framgångsmeddelande
+      setSuccessMessage('Ändringarna har sparats.');
       setSuccess(true);
       setTimeout(() => {
         setSuccess(false);
@@ -70,6 +74,37 @@ export function ColumnMappingEditor() {
       setError('Kunde inte spara ändringarna: ' + err.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    console.log('ColumnMappingEditor: Återställer till standardvärden');
+    
+    setIsResetting(true);
+    setError(null);
+    
+    try {
+      // Sätt mappningar till standardvärdena
+      setMappings({...DEFAULT_MAPPINGS});
+      
+      // Spara standardmappningarna
+      await saveColumnMappings({...DEFAULT_MAPPINGS});
+      console.log('ColumnMappingEditor: Återställning lyckades');
+      
+      // Rensa cachen för att säkerställa att alla komponenter får de nya mappningarna
+      clearMappingsCache();
+      
+      // Visa framgångsmeddelande
+      setSuccessMessage('Mappningarna har återställts till standardvärden.');
+      setSuccess(true);
+      setTimeout(() => {
+        setSuccess(false);
+      }, 10000);
+    } catch (err) {
+      console.error('ColumnMappingEditor: Fel vid återställning:', err);
+      setError('Kunde inte återställa mappningarna: ' + err.message);
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -193,7 +228,7 @@ export function ColumnMappingEditor() {
               <AlertTitle className="text-green-800">Ändringar sparade</AlertTitle>
               <AlertDescription className="text-green-700">
                 <div className="space-y-2">
-                  <p>Ändringarna har sparats.</p>
+                  <p>{successMessage}</p>
                   <p className="font-semibold">Du måste nu gå tillbaka och läs in CSV-filen igen för att ändringarna ska börja gälla.</p>
                 </div>
               </AlertDescription>
@@ -225,7 +260,7 @@ export function ColumnMappingEditor() {
                               value={originalName}
                               onChange={(e) => handleValueChange(originalName, e.target.value)}
                               className="max-w-sm"
-                              disabled={isSaving}
+                              disabled={isSaving || isResetting}
                             />
                           </TableCell>
                           <TableCell className="text-muted-foreground">
@@ -273,10 +308,29 @@ export function ColumnMappingEditor() {
             </div>
           ))}
 
-          <div className="flex justify-end">
+          <div className="flex justify-between">
+            <Button 
+              onClick={handleReset} 
+              disabled={isResetting || isSaving}
+              variant="outline"
+              className="min-w-[100px]"
+            >
+              {isResetting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Återställer...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Återställ till standard
+                </>
+              )}
+            </Button>
+
             <Button 
               onClick={handleSave} 
-              disabled={isSaving}
+              disabled={isSaving || isResetting}
               className="min-w-[100px]"
             >
               {isSaving ? (
