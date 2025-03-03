@@ -15,7 +15,8 @@ import { ACCOUNT_VIEW_FIELDS, POST_VIEW_FIELDS } from '@/utils/dataProcessing';
 const POST_VIEW_AVAILABLE_FIELDS = {
   'post_reach': 'Räckvidd',
   'views': 'Visningar',
-  'engagement_total': 'Gilla-markeringar, kommentarer och delningar',
+  'engagement_total': 'Interaktioner',
+  'engagement_total_extended': 'Totalt engagemang (alla typer)',
   'likes': 'Gilla-markeringar',
   'comments': 'Kommentarer',
   'shares': 'Delningar',
@@ -27,7 +28,8 @@ const POST_VIEW_AVAILABLE_FIELDS = {
 const ACCOUNT_VIEW_AVAILABLE_FIELDS = {
   'views': 'Visningar',
   'average_reach': 'Genomsnittlig räckvidd',
-  'engagement_total': 'Gilla-markeringar, kommentarer och delningar',
+  'engagement_total': 'Interaktioner',
+  'engagement_total_extended': 'Totalt engagemang (alla typer)',
   'likes': 'Gilla-markeringar',
   'comments': 'Kommentarer',
   'shares': 'Delningar',

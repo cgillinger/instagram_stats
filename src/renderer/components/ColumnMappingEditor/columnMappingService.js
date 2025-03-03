@@ -41,7 +41,8 @@ export const DISPLAY_NAMES = {
   'views': 'Visningar',
   'post_reach': 'Räckvidd',
   'average_reach': 'Genomsnittlig räckvidd',
-  'engagement_total': 'Gilla-markeringar, kommentarer och delningar',
+  'engagement_total': 'Interaktioner',
+  'engagement_total_extended': 'Totalt engagemang (alla typer)',
   'likes': 'Gilla-markeringar',
   'comments': 'Kommentarer',
   'shares': 'Delningar',
@@ -72,7 +73,7 @@ export const ALTERNATIVE_NAMES = {
 export const COLUMN_GROUPS = {
   'Metadata': ['post_id', 'account_id', 'account_name', 'account_username', 'description', 'publish_time', 'post_type', 'permalink'],
   'Räckvidd och visningar': ['views', 'post_reach', 'average_reach'],
-  'Engagemang': ['engagement_total', 'likes', 'comments', 'shares', 'saves', 'follows']
+  'Engagemang': ['engagement_total', 'engagement_total_extended', 'likes', 'comments', 'shares', 'saves', 'follows']
 };
 
 // Cache för att förbättra prestanda
@@ -245,6 +246,21 @@ export function getValue(dataObject, targetField) {
     shares = getFieldValue(dataObject, 'shares') || 0;
     
     return likes + comments + shares;
+  }
+  
+  // Hantera specialfall för det utökade engagemanget
+  if (targetField === 'engagement_total_extended') {
+    // Beräkna summan av alla engagemangsvärden
+    let likes = 0, comments = 0, shares = 0, saves = 0, follows = 0;
+    
+    // Hämta alla engagemangsvärden
+    likes = getFieldValue(dataObject, 'likes') || 0;
+    comments = getFieldValue(dataObject, 'comments') || 0;
+    shares = getFieldValue(dataObject, 'shares') || 0;
+    saves = getFieldValue(dataObject, 'saves') || 0;
+    follows = getFieldValue(dataObject, 'follows') || 0;
+    
+    return likes + comments + shares + saves + follows;
   }
   
   // Använd den mer generella getFieldValue för alla andra fält
