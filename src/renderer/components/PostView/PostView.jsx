@@ -21,6 +21,19 @@ const PAGE_SIZE_OPTIONS = [
   { value: '50', label: '50 per sida' }
 ];
 
+// Definiera specifika fält för per-inlägg-vyn - håll detta synkat med MainView.jsx
+const POST_VIEW_AVAILABLE_FIELDS = {
+  'post_reach': 'Räckvidd',
+  'views': 'Visningar',
+  'engagement_total': 'Interaktioner',
+  'engagement_total_extended': 'Totalt engagemang (alla typer)',
+  'likes': 'Gilla-markeringar',
+  'comments': 'Kommentarer',
+  'shares': 'Delningar',
+  'saves': 'Sparade',
+  'follows': 'Följare'
+};
+
 const PostView = ({ data, selectedFields }) => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [columnMappings, setColumnMappings] = useState({});
@@ -103,9 +116,10 @@ const PostView = ({ data, selectedFields }) => {
     }
   };
 
-  // Hämta visningsnamn för ett fält
+  // Hämta visningsnamn för ett fält från POST_VIEW_AVAILABLE_FIELDS
   const getDisplayName = (field) => {
-    return POST_VIEW_FIELDS[field] || DISPLAY_NAMES[field] || field;
+    // Använd samma definitioner som i MainView.jsx för konsistent visning
+    return POST_VIEW_AVAILABLE_FIELDS[field] || DISPLAY_NAMES[field] || POST_VIEW_FIELDS[field] || field;
   };
 
   // Filtrera data baserat på valt konto
@@ -195,7 +209,8 @@ const PostView = ({ data, selectedFields }) => {
       };
 
       for (const field of selectedFields) {
-        const displayName = getDisplayName(field);
+        // För export använder vi fortfarande POST_VIEW_FIELDS från dataProcessing
+        const displayName = POST_VIEW_FIELDS[field] || getDisplayName(field);
         formattedPost[displayName] = formatValue(getValue(post, field));
       }
 

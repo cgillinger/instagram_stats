@@ -78,7 +78,8 @@ const summarizeByAccount = (data, selectedFields, columnMappings) => {
       account_username: account.account_username
     };
     
-    // Extrahera grundvärdena först
+    // Extrahera grundvärdena först - samla in dessa oberoende av om de är valda
+    // för att kunna beräkna sammansatta värden korrekt
     let totalLikes = 0, totalComments = 0, totalShares = 0, totalSaves = 0, totalFollows = 0;
     for (const post of account.posts) {
       totalLikes += (getValue(post, 'likes') || 0);
@@ -95,7 +96,7 @@ const summarizeByAccount = (data, selectedFields, columnMappings) => {
     if (selectedFields.includes('saves')) summary.saves = totalSaves;
     if (selectedFields.includes('follows')) summary.follows = totalFollows;
     
-    // Beräkna sammansatta värden
+    // Beräkna sammansatta värden om de är valda
     if (selectedFields.includes('engagement_total')) {
       summary.engagement_total = totalLikes + totalComments + totalShares;
     }
@@ -181,26 +182,28 @@ const AccountView = ({ data, selectedFields }) => {
       if (Array.isArray(summary) && summary.length > 0) {
         const totals = { account_name: 'Totalt' };
         
-        // Beräkna först grundläggande värden för total
+        // Samla alltid in primärvärden oavsett om de är valda
         let totalLikes = 0, totalComments = 0, totalShares = 0, totalSaves = 0, totalFollows = 0;
         
-        // Summera primärvärden från alla konton
-        summary.forEach(account => {
-          if (selectedFields.includes('likes')) totalLikes += (account.likes || 0);
-          if (selectedFields.includes('comments')) totalComments += (account.comments || 0);
-          if (selectedFields.includes('shares')) totalShares += (account.shares || 0);
-          if (selectedFields.includes('saves')) totalSaves += (account.saves || 0);
-          if (selectedFields.includes('follows')) totalFollows += (account.follows || 0);
-        });
+        // Gå igenom alla rader i originaldata för att beräkna exakta siffror
+        if (Array.isArray(data)) {
+          data.forEach(post => {
+            totalLikes += (getValue(post, 'likes') || 0);
+            totalComments += (getValue(post, 'comments') || 0);
+            totalShares += (getValue(post, 'shares') || 0);
+            totalSaves += (getValue(post, 'saves') || 0);
+            totalFollows += (getValue(post, 'follows') || 0);
+          });
+        }
         
-        // Spara primärvärden till totaler
+        // Spara primärvärden till totaler om de är valda
         if (selectedFields.includes('likes')) totals.likes = totalLikes;
         if (selectedFields.includes('comments')) totals.comments = totalComments;
         if (selectedFields.includes('shares')) totals.shares = totalShares;
         if (selectedFields.includes('saves')) totals.saves = totalSaves;
         if (selectedFields.includes('follows')) totals.follows = totalFollows;
         
-        // Beräkna sammansatta värden för total
+        // Beräkna sammansatta värden för total oavsett om primärvärdena är valda
         if (selectedFields.includes('engagement_total')) {
           totals.engagement_total = totalLikes + totalComments + totalShares;
         }
@@ -217,9 +220,19 @@ const AccountView = ({ data, selectedFields }) => {
             return;
           }
           
-          totals[field] = summary.reduce((sum, account) => {
-            return sum + (getValue(account, field) || 0);
-          }, 0);
+          // Summera övriga värden (t.ex. 'views') direkt från originaldata för exakthet
+          if (field === 'views') {
+            let totalViews = 0;
+            data.forEach(post => {
+              totalViews += (getValue(post, field) || 0);
+            });
+            totals[field] = totalViews;
+          } else {
+            // Fallback till summering från summary för övriga fält
+            totals[field] = summary.reduce((sum, account) => {
+              return sum + (getValue(account, field) || 0);
+            }, 0);
+          }
         });
         
         setTotalSummary(totals);
