@@ -78,8 +78,39 @@ const summarizeByAccount = (data, selectedFields, columnMappings) => {
       account_username: account.account_username
     };
     
-    // Beräkna summa/genomsnitt för varje valt fält
+    // Extrahera grundvärdena först
+    let totalLikes = 0, totalComments = 0, totalShares = 0, totalSaves = 0, totalFollows = 0;
+    for (const post of account.posts) {
+      totalLikes += (getValue(post, 'likes') || 0);
+      totalComments += (getValue(post, 'comments') || 0);
+      totalShares += (getValue(post, 'shares') || 0);
+      totalSaves += (getValue(post, 'saves') || 0);
+      totalFollows += (getValue(post, 'follows') || 0);
+    }
+    
+    // Spara de grundläggande värdena om de är valda
+    if (selectedFields.includes('likes')) summary.likes = totalLikes;
+    if (selectedFields.includes('comments')) summary.comments = totalComments;
+    if (selectedFields.includes('shares')) summary.shares = totalShares;
+    if (selectedFields.includes('saves')) summary.saves = totalSaves;
+    if (selectedFields.includes('follows')) summary.follows = totalFollows;
+    
+    // Beräkna sammansatta värden
+    if (selectedFields.includes('engagement_total')) {
+      summary.engagement_total = totalLikes + totalComments + totalShares;
+    }
+    
+    if (selectedFields.includes('engagement_total_extended')) {
+      summary.engagement_total_extended = totalLikes + totalComments + totalShares + totalSaves + totalFollows;
+    }
+    
+    // Beräkna övriga valda fält
     for (const field of selectedFields) {
+      // Hoppa över fält som redan är beräknade
+      if (['likes', 'comments', 'shares', 'saves', 'follows', 'engagement_total', 'engagement_total_extended'].includes(field)) {
+        continue;
+      }
+      
       if (field === 'average_reach') {
         // Beräkna genomsnittlig räckvidd
         let totalReach = 0;
@@ -91,30 +122,6 @@ const summarizeByAccount = (data, selectedFields, columnMappings) => {
         summary.average_reach = account.posts.length > 0 
           ? Math.round(totalReach / account.posts.length) 
           : 0;
-      } else if (field === 'engagement_total') {
-        // Beräkna summan av likes, comments och shares
-        let likes = 0, comments = 0, shares = 0;
-        
-        for (const post of account.posts) {
-          likes += (getValue(post, 'likes') || 0);
-          comments += (getValue(post, 'comments') || 0);
-          shares += (getValue(post, 'shares') || 0);
-        }
-        
-        summary[field] = likes + comments + shares;
-      } else if (field === 'engagement_total_extended') {
-        // Beräkna summan av alla engagemangsvärden
-        let likes = 0, comments = 0, shares = 0, saves = 0, follows = 0;
-        
-        for (const post of account.posts) {
-          likes += (getValue(post, 'likes') || 0);
-          comments += (getValue(post, 'comments') || 0);
-          shares += (getValue(post, 'shares') || 0);
-          saves += (getValue(post, 'saves') || 0);
-          follows += (getValue(post, 'follows') || 0);
-        }
-        
-        summary[field] = likes + comments + shares + saves + follows;
       } else {
         // Summera övriga värden
         let sum = 0;
@@ -174,12 +181,45 @@ const AccountView = ({ data, selectedFields }) => {
       if (Array.isArray(summary) && summary.length > 0) {
         const totals = { account_name: 'Totalt' };
         
+        // Beräkna först grundläggande värden för total
+        let totalLikes = 0, totalComments = 0, totalShares = 0, totalSaves = 0, totalFollows = 0;
+        
+        // Summera primärvärden från alla konton
+        summary.forEach(account => {
+          if (selectedFields.includes('likes')) totalLikes += (account.likes || 0);
+          if (selectedFields.includes('comments')) totalComments += (account.comments || 0);
+          if (selectedFields.includes('shares')) totalShares += (account.shares || 0);
+          if (selectedFields.includes('saves')) totalSaves += (account.saves || 0);
+          if (selectedFields.includes('follows')) totalFollows += (account.follows || 0);
+        });
+        
+        // Spara primärvärden till totaler
+        if (selectedFields.includes('likes')) totals.likes = totalLikes;
+        if (selectedFields.includes('comments')) totals.comments = totalComments;
+        if (selectedFields.includes('shares')) totals.shares = totalShares;
+        if (selectedFields.includes('saves')) totals.saves = totalSaves;
+        if (selectedFields.includes('follows')) totals.follows = totalFollows;
+        
+        // Beräkna sammansatta värden för total
+        if (selectedFields.includes('engagement_total')) {
+          totals.engagement_total = totalLikes + totalComments + totalShares;
+        }
+        
+        if (selectedFields.includes('engagement_total_extended')) {
+          totals.engagement_total_extended = totalLikes + totalComments + totalShares + totalSaves + totalFollows;
+        }
+        
+        // Summera övriga värden
         selectedFields.forEach(field => {
-          if (!FIELDS_WITHOUT_TOTALS.includes(field)) {
-            totals[field] = summary.reduce((sum, account) => {
-              return sum + (getValue(account, field) || 0);
-            }, 0);
+          // Hoppa över fält som redan är beräknade eller inte ska ha total
+          if (['likes', 'comments', 'shares', 'saves', 'follows', 'engagement_total', 'engagement_total_extended'].includes(field) || 
+              FIELDS_WITHOUT_TOTALS.includes(field)) {
+            return;
           }
+          
+          totals[field] = summary.reduce((sum, account) => {
+            return sum + (getValue(account, field) || 0);
+          }, 0);
         });
         
         setTotalSummary(totals);

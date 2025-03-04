@@ -71,6 +71,7 @@ export function useColumnMapper() {
 
   /**
    * Validerar headers mot konfigurerade mappningar
+   * Använder enbart exakta matchningar mot mappningar
    * @param {Array} headers - Lista med kolumnrubriker
    * @returns {Object} - Resultat av valideringen
    */
@@ -92,7 +93,7 @@ export function useColumnMapper() {
     const found = [];
     const unknown = [];
 
-    // Gå igenom varje header och försök hitta matchning
+    // Gå igenom varje header och försök hitta matchning mot konfigurerade mappningar
     headers.forEach(header => {
       const internalName = findMatchingColumnKey(header, currentMappings);
       if (internalName) {

@@ -50,23 +50,24 @@ export const DISPLAY_NAMES = {
   'follows': 'Följare'
 };
 
-// Alternativa namn för vanliga fält för bättre sökning
-export const ALTERNATIVE_NAMES = {
-  "views": ["Views", "Visningar", "Impressions", "Exponeringar", "impressions"],
-  "post_reach": ["Reach", "Räckvidd", "reach"],
-  "likes": ["Likes", "Gilla-markeringar", "Gilla markeringar", "likes"],
-  "comments": ["Comments", "Kommentarer", "comments"],
-  "shares": ["Shares", "Delningar", "shares"],
-  "follows": ["Follows", "Följer", "Följare", "follows"],
-  "saves": ["Saves", "Sparade objekt", "Sparade", "saves"],
-  "post_id": ["Post ID", "Publicerings-id", "Inläggs-ID", "PostID", "post_id", "post-id"],
-  "account_id": ["Account ID", "Konto-id", "Konto-ID", "KontoID", "account_id", "page_id"],
-  "account_name": ["Account name", "Kontonamn", "Page name", "account_name"],
-  "account_username": ["Account username", "Kontots användarnamn", "Användarnamn", "Username", "account_username"],
-  "description": ["Description", "Beskrivning", "description", "Caption", "caption"],
-  "publish_time": ["Publish time", "Publiceringstid", "publish_time", "Date", "date", "Datum"],
-  "post_type": ["Post type", "Inläggstyp", "Typ", "post_type", "Type", "type"],
-  "permalink": ["Permalink", "Permalänk", "Länk", "permalink", "Link", "link", "URL", "url"]
+// Alternativa exempel på kolumnnamn för hjälp vid mappning 
+// Används enbart för att visa förslag i mappningseditorn, inte för matchning
+export const COLUMN_EXAMPLES = {
+  "views": ["Visningar", "Views"],
+  "post_reach": ["Räckvidd", "Reach"],
+  "likes": ["Gilla-markeringar", "Likes"],
+  "comments": ["Kommentarer", "Comments"],
+  "shares": ["Delningar", "Shares"],
+  "follows": ["Följer", "Följare", "Follows"],
+  "saves": ["Sparade objekt", "Sparade", "Saves"],
+  "post_id": ["Publicerings-id", "Inläggs-ID", "Post ID"],
+  "account_id": ["Konto-id", "Konto-ID", "Account ID"],
+  "account_name": ["Kontonamn", "Account name"],
+  "account_username": ["Kontots användarnamn", "Användarnamn", "Username"],
+  "description": ["Beskrivning", "Description"],
+  "publish_time": ["Publiceringstid", "Publish time", "Datum", "Date"],
+  "post_type": ["Inläggstyp", "Typ", "Post type"],
+  "permalink": ["Permalänk", "Länk", "Permalink", "Link"]
 };
 
 // Gruppera kolumner för bättre översikt i ColumnMappingEditor
@@ -210,27 +211,6 @@ export function getValue(dataObject, targetField) {
     return dataObject[targetField];
   }
   
-  // Särskilda fall för vissa viktiga fält
-  if (targetField === 'account_name') {
-    // Försök hitta kontonamn från flera olika möjliga källor
-    for (const key of ['account_name', 'Account name', 'Page name', 'Kontonamn']) {
-      if (dataObject[key] !== undefined) {
-        return dataObject[key];
-      }
-    }
-    return 'Unknown'; // Standardvärde om inget hittas
-  }
-  
-  if (targetField === 'account_id') {
-    // Försök hitta konto-id från flera olika möjliga källor
-    for (const key of ['account_id', 'Account ID', 'Konto-ID', 'Page ID']) {
-      if (dataObject[key] !== undefined) {
-        return dataObject[key];
-      }
-    }
-    return null;
-  }
-
   // Hantera specialfall för engagement_total
   if (targetField === 'engagement_total') {
     // Beräkna summan av likes, comments och shares
@@ -269,7 +249,7 @@ export function getValue(dataObject, targetField) {
 
 /**
  * Hjälpfunktion för att hitta värdet för ett specifikt fält i data (SYNKRON VERSION)
- * Provar flera alternativ baserat på mappningar och kända alternativ
+ * Använder enbart mappningar för att hitta värdet, inte fallback logik
  */
 export function getFieldValue(dataObject, fieldName) {
   if (!dataObject) return null;
@@ -287,16 +267,8 @@ export function getFieldValue(dataObject, fieldName) {
     return safeParseValue(dataObject[originalColumnName]);
   }
   
-  // 3. Prova alternativa namn från ALTERNATIVE_NAMES
-  if (ALTERNATIVE_NAMES[fieldName]) {
-    for (const altName of ALTERNATIVE_NAMES[fieldName]) {
-      if (dataObject[altName] !== undefined) {
-        return safeParseValue(dataObject[altName]);
-      }
-    }
-  }
-  
-  // 4. Försök hitta genom normaliserade kolumnnamn
+  // 3. Försök hitta genom normaliserade kolumnnamn
+  // Detta sker enbart om inga av ovanstående matchningar lyckas
   const normalizedFieldName = normalizeText(fieldName);
   for (const [key, value] of Object.entries(dataObject)) {
     if (normalizeText(key) === normalizedFieldName) {
@@ -355,32 +327,28 @@ export function formatDate(dateStr) {
 }
 
 /**
- * En mer robust funktion för att hitta matchning mellan kolumnnamn
+ * Hitta matchning mellan kolumnnamn och internt namn
+ * Använder enbart exakta matchningar mot kolumnmappningar
  */
 export function findMatchingColumnKey(columnName, mappings) {
   if (!columnName || !mappings) return null;
   
   const normalizedColumnName = normalizeText(columnName);
   
-  // Direktmatchning
+  // Exakt matchning mot mappningar
   for (const [original, internal] of Object.entries(mappings)) {
     if (normalizeText(original) === normalizedColumnName) {
       return internal;
     }
   }
   
-  // Försök hitta match i alternativa namn
-  for (const [internal, alternatives] of Object.entries(ALTERNATIVE_NAMES)) {
-    if (alternatives.some(alt => normalizeText(alt) === normalizedColumnName)) {
-      return internal;
-    }
-  }
-  
+  // Om ingen exakt matchning hittas, returnera null
   return null;
 }
 
 /**
- * Returnerar alla kända namn för ett internt fältnamn
+ * Returnerar alla kända exempel på namn för ett internt fältnamn
+ * Används enbart i UI för att hjälpa användaren
  */
 export function getAllKnownNamesForField(internalName) {
   const names = new Set();
@@ -391,9 +359,9 @@ export function getAllKnownNamesForField(internalName) {
     names.add(inverseMappings[internalName]);
   }
   
-  // Lägg till från alternativa namn
-  if (ALTERNATIVE_NAMES[internalName]) {
-    ALTERNATIVE_NAMES[internalName].forEach(name => names.add(name));
+  // Lägg till från exempel
+  if (COLUMN_EXAMPLES[internalName]) {
+    COLUMN_EXAMPLES[internalName].forEach(name => names.add(name));
   }
   
   // Ta bort dupliceringar och returnera unika namn

@@ -108,6 +108,7 @@ export function ColumnMappingEditor() {
     }
   };
 
+  // FIX: Improved handleValueChange function to avoid disappearing rows
   const handleValueChange = (originalName, newValue) => {
     if (!newValue.trim()) {
       setError('Kolumnnamn kan inte vara tomt');
@@ -118,22 +119,39 @@ export function ColumnMappingEditor() {
     console.log('Från:', originalName);
     console.log('Till:', newValue);
     
+    // Check if the new value already exists as a key
+    if (newValue !== originalName && mappings[newValue] !== undefined) {
+      setError(`Kolumnnamnet "${newValue}" används redan. Välj ett annat namn.`);
+      return;
+    }
+    
     setMappings(prev => {
-      // Skapa en kopia av tidigare mappningar
+      // Create a copy of the previous mappings
       const newMappings = { ...prev };
       
-      // Spara det interna namnet som denna kolumn ska mappa till
+      // Get the internal name that this column should map to
       const internalName = newMappings[originalName];
       
-      // Ta bort den gamla mappningen
-      delete newMappings[originalName];
+      // If no internal name is found, log error but don't proceed with changes
+      if (internalName === undefined) {
+        console.error(`Internt namn saknas för "${originalName}"`);
+        return prev; // Return unchanged mappings
+      }
       
-      // Lägg till den nya mappningen
+      // Create the new mapping first, then remove the old one
       newMappings[newValue] = internalName;
+      
+      // Only remove the old mapping if it's different from the new one
+      if (originalName !== newValue) {
+        delete newMappings[originalName];
+      }
       
       console.log('ColumnMappingEditor: Nya mappningar:', newMappings);
       return newMappings;
     });
+    
+    // Clear any previous error
+    setError(null);
   };
 
   // Hjälpfunktion för att visa alla möjliga kolumnnamn för ett fält

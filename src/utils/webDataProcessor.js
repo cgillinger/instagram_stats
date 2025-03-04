@@ -7,7 +7,7 @@
 import Papa from 'papaparse';
 import { saveProcessedData } from './webStorageService';
 import { DEFAULT_MAPPINGS } from '../renderer/components/ColumnMappingEditor/columnMappingService';
-import { getValue } from '../renderer/components/ColumnMappingEditor/columnMappingService';
+import { getValue, normalizeText } from '../renderer/components/ColumnMappingEditor/columnMappingService';
 
 // Summeringsbara värden för "Per konto"-vy
 const SUMMARIZABLE_COLUMNS = Object.values(DEFAULT_MAPPINGS).filter(col => [
@@ -19,18 +19,6 @@ const NON_SUMMARIZABLE_COLUMNS = Object.values(DEFAULT_MAPPINGS).filter(col => [
   "post_id", "account_id", "account_name", "account_username", "description",
   "publish_time", "date", "post_type", "permalink"
 ].includes(col));
-
-/**
- * Normaliserar text för konsekvent jämförelse
- */
-function normalizeText(text) {
-  if (text === null || text === undefined) return '';
-  return text.toString()
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ') // Hantera multipla mellanslag
-    .replace(/[\u200B-\u200D\uFEFF]/g, ''); // Ta bort osynliga tecken
-}
 
 /**
  * Identifierar och hanterar dubletter baserat på Post ID
@@ -83,6 +71,7 @@ function handleDuplicates(data, columnMappings) {
 
 /**
  * Mappar CSV-kolumnnamn till interna namn med hjälp av kolumnmappningar
+ * Använder bara exakta matchningar från användarkonfigurerade mappningar
  */
 function mapColumnNames(row, columnMappings) {
   const mappedRow = {};
@@ -99,7 +88,7 @@ function mapColumnNames(row, columnMappings) {
       }
     }
     
-    // Om ingen mappning hittades, använd originalkolumnen
+    // Om ingen mappning hittades, behåll originalkolumnen som är
     if (!internalName) {
       internalName = originalCol;
     }
@@ -148,41 +137,36 @@ export async function processInstagramData(csvContent, columnMappings) {
             // Mappa kolumnnamn till interna namn
             const mappedRow = mapColumnNames(row, columnMappings);
             
-            const accountID = mappedRow["account_id"] || 
-                            mappedRow["Account ID"] || 
-                            row["Account ID"] || 
-                            'unknown';
+            // Använd getValue för att få accountID för att säkerställa att vi använder rätt fält
+            const accountID = getValue(mappedRow, 'account_id') || 'unknown';
             
             if (!accountID) return;
             
-            // Säkerställ att account_name finns
-            if (!mappedRow["account_name"]) {
-              mappedRow["account_name"] = 
-                mappedRow["Account name"] || 
-                row["Account name"] || 
-                'Okänt konto';
-            }
+            // Använd getValue för att säkerställa att account_name finns
+            const accountName = getValue(mappedRow, 'account_name') || 'Okänt konto';
+            const accountUsername = getValue(mappedRow, 'account_username') || '-';
             
             // Skapa konto-objekt om det inte finns
             if (!perKonto[accountID]) {
               perKonto[accountID] = { 
                 "account_id": accountID,
-                "account_name": mappedRow["account_name"],
-                "account_username": mappedRow["account_username"] || mappedRow["Username"] || '-'
+                "account_name": accountName,
+                "account_username": accountUsername
               };
               SUMMARIZABLE_COLUMNS.forEach(col => perKonto[accountID][col] = 0);
             }
             
             // Beräkna engagement_total (likes + comments + shares)
-            const likes = parseFloat(mappedRow["likes"]) || 0;
-            const comments = parseFloat(mappedRow["comments"]) || 0;
-            const shares = parseFloat(mappedRow["shares"]) || 0;
+            const likes = parseFloat(getValue(mappedRow, 'likes')) || 0;
+            const comments = parseFloat(getValue(mappedRow, 'comments')) || 0;
+            const shares = parseFloat(getValue(mappedRow, 'shares')) || 0;
             mappedRow["engagement_total"] = likes + comments + shares;
             
             // Summera värden
             SUMMARIZABLE_COLUMNS.forEach(col => {
-              if (mappedRow[col] && !isNaN(parseFloat(mappedRow[col]))) {
-                perKonto[accountID][col] += parseFloat(mappedRow[col]);
+              const value = getValue(mappedRow, col);
+              if (value !== null && !isNaN(parseFloat(value))) {
+                perKonto[accountID][col] += parseFloat(value);
               }
             });
             
@@ -243,9 +227,7 @@ export function getUniquePageNames(data) {
   const accountNames = new Set();
   
   data.forEach(post => {
-    const accountName = post.account_name || 
-                       post['Account name'] || 
-                       post['Page name'];
+    const accountName = getValue(post, 'account_name');
     if (accountName) {
       accountNames.add(accountName);
     }
