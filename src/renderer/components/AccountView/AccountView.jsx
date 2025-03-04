@@ -1,16 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, FileDown, FileSpreadsheet } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, FileDown, FileSpreadsheet, Calculator } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Button } from '../ui/button';
-import { ACCOUNT_VIEW_FIELDS } from '@/utils/dataProcessing';
 import { 
   readColumnMappings, 
   getValue,
   formatValue,
   DISPLAY_NAMES 
 } from '../ColumnMappingEditor/columnMappingService';
+
+// Importera BARA för att kunna generera korrekta exportfilnamn, men använd inte för visningsnamn
+import { ACCOUNT_VIEW_FIELDS } from '@/utils/dataProcessing';
+
+// Definiera specifika fält för per-konto-vyn - håll detta synkat med MainView.jsx
+const ACCOUNT_VIEW_AVAILABLE_FIELDS = {
+  'views': 'Visningar',
+  'average_reach': 'Genomsnittlig räckvidd',
+  'engagement_total': 'Interaktioner',
+  'engagement_total_extended': 'Totalt engagemang (alla typer)',
+  'likes': 'Gilla-markeringar',
+  'comments': 'Kommentarer',
+  'shares': 'Delningar',
+  'saves': 'Sparade',
+  'follows': 'Följare'
+};
+
+// Lista över fält som inte ska ha totalsumma
+const FIELDS_WITHOUT_TOTALS = [
+  'average_reach'
+];
 
 const PAGE_SIZE_OPTIONS = [
   { value: '10', label: '10 per sida' },
@@ -71,6 +91,30 @@ const summarizeByAccount = (data, selectedFields, columnMappings) => {
         summary.average_reach = account.posts.length > 0 
           ? Math.round(totalReach / account.posts.length) 
           : 0;
+      } else if (field === 'engagement_total') {
+        // Beräkna summan av likes, comments och shares
+        let likes = 0, comments = 0, shares = 0;
+        
+        for (const post of account.posts) {
+          likes += (getValue(post, 'likes') || 0);
+          comments += (getValue(post, 'comments') || 0);
+          shares += (getValue(post, 'shares') || 0);
+        }
+        
+        summary[field] = likes + comments + shares;
+      } else if (field === 'engagement_total_extended') {
+        // Beräkna summan av alla engagemangsvärden
+        let likes = 0, comments = 0, shares = 0, saves = 0, follows = 0;
+        
+        for (const post of account.posts) {
+          likes += (getValue(post, 'likes') || 0);
+          comments += (getValue(post, 'comments') || 0);
+          shares += (getValue(post, 'shares') || 0);
+          saves += (getValue(post, 'saves') || 0);
+          follows += (getValue(post, 'follows') || 0);
+        }
+        
+        summary[field] = likes + comments + shares + saves + follows;
       } else {
         // Summera övriga värden
         let sum = 0;
@@ -95,6 +139,7 @@ const AccountView = ({ data, selectedFields }) => {
   const [pageSize, setPageSize] = useState(20);
   const [columnMappings, setColumnMappings] = useState({});
   const [summaryData, setSummaryData] = useState([]);
+  const [totalSummary, setTotalSummary] = useState({});
   const [isLoading, setIsLoading] = useState(true);
 
   // Ladda kolumnmappningar när komponenten monteras
@@ -114,6 +159,7 @@ const AccountView = ({ data, selectedFields }) => {
   useEffect(() => {
     if (!data || !selectedFields || selectedFields.length === 0) {
       setSummaryData([]);
+      setTotalSummary({});
       setIsLoading(false);
       return;
     }
@@ -123,9 +169,25 @@ const AccountView = ({ data, selectedFields }) => {
       // Använd den synkrona versionen av summarizeByAccount
       const summary = summarizeByAccount(data, selectedFields, columnMappings);
       setSummaryData(summary);
+      
+      // Beräkna totalsummor för alla fält
+      if (Array.isArray(summary) && summary.length > 0) {
+        const totals = { account_name: 'Totalt' };
+        
+        selectedFields.forEach(field => {
+          if (!FIELDS_WITHOUT_TOTALS.includes(field)) {
+            totals[field] = summary.reduce((sum, account) => {
+              return sum + (getValue(account, field) || 0);
+            }, 0);
+          }
+        });
+        
+        setTotalSummary(totals);
+      }
     } catch (error) {
       console.error('Failed to load summary data:', error);
       setSummaryData([]);
+      setTotalSummary({});
     } finally {
       setIsLoading(false);
     }
@@ -150,6 +212,11 @@ const AccountView = ({ data, selectedFields }) => {
     return sortConfig.direction === 'asc' ? 
       <ArrowUp className="h-4 w-4 ml-1" /> : 
       <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
+  // Hämta visningsnamn för ett fält från ACCOUNT_VIEW_AVAILABLE_FIELDS
+  const getDisplayName = (field) => {
+    return ACCOUNT_VIEW_AVAILABLE_FIELDS[field] || DISPLAY_NAMES[field] || field;
   };
 
   // Sortera data baserat på aktuell sorteringskonfiguration
@@ -224,7 +291,9 @@ const AccountView = ({ data, selectedFields }) => {
       };
       
       for (const field of selectedFields) {
-        const displayName = ACCOUNT_VIEW_FIELDS[field] || field;
+        // För export använder vi fortfarande ACCOUNT_VIEW_FIELDS från dataProcessing
+        // eftersom det kan innehålla mer specifika exportnamn
+        const displayName = ACCOUNT_VIEW_FIELDS[field] || getDisplayName(field);
         const value = getValue(account, field);
         formattedAccount[displayName] = formatValue(value);
       }
@@ -305,13 +374,29 @@ const AccountView = ({ data, selectedFields }) => {
                   onClick={() => handleSort(field)}
                 >
                   <div className="flex items-center justify-end">
-                    {ACCOUNT_VIEW_FIELDS[field] || DISPLAY_NAMES[field] || field} {getSortIcon(field)}
+                    {getDisplayName(field)} {getSortIcon(field)}
                   </div>
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
+            {/* Totalsumma-rad */}
+            <TableRow className="bg-primary/5 border-b-2 border-primary/20">
+              <TableCell className="font-semibold flex items-center">
+                <Calculator className="w-4 h-4 mr-2 text-primary" />
+                <span className="text-primary">Totalt</span>
+              </TableCell>
+              {selectedFields.map((field) => (
+                <TableCell key={field} className="text-right font-semibold text-primary">
+                  {!FIELDS_WITHOUT_TOTALS.includes(field) 
+                    ? formatValue(totalSummary[field]) 
+                    : ''}
+                </TableCell>
+              ))}
+            </TableRow>
+
+            {/* Datarader */}
             {paginatedData.map((account) => (
               <TableRow key={`${getValue(account, 'account_id')}-${getValue(account, 'account_name')}`}>
                 <TableCell className="font-medium">
