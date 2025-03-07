@@ -24,12 +24,15 @@ const ACCOUNT_VIEW_AVAILABLE_FIELDS = {
   'comments': 'Kommentarer',
   'shares': 'Delningar',
   'saves': 'Sparade',
-  'follows': 'Följare'
+  'follows': 'Följare',
+  'post_count': 'Antal publiceringar',
+  'posts_per_day': 'Antal publiceringar per dag'
 };
 
 // Lista över fält som inte ska ha totalsumma
 const FIELDS_WITHOUT_TOTALS = [
-  'average_reach'
+  'average_reach',
+  'posts_per_day'
 ];
 
 const PAGE_SIZE_OPTIONS = [
@@ -105,10 +108,51 @@ const summarizeByAccount = (data, selectedFields, columnMappings) => {
       summary.engagement_total_extended = totalLikes + totalComments + totalShares + totalSaves + totalFollows;
     }
     
+    // Beräkna antal publiceringar om det är valt
+    if (selectedFields.includes('post_count')) {
+      summary.post_count = account.posts.length;
+    }
+    
+    // Beräkna antal publiceringar per dag om det är valt
+    if (selectedFields.includes('posts_per_day')) {
+      if (account.posts.length === 0) {
+        summary.posts_per_day = 0;
+      } else {
+        // Samla alla publiceringsdatum för att hitta den totala perioden
+        const dates = [];
+        for (const post of account.posts) {
+          const publishTime = getValue(post, 'publish_time');
+          if (publishTime) {
+            const date = new Date(publishTime);
+            if (!isNaN(date.getTime())) {
+              dates.push(date);
+            }
+          }
+        }
+        
+        if (dates.length > 0) {
+          // Hitta första och sista publiceringsdatum
+          const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+          const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+          
+          // Beräkna antal dagar mellan första och sista publiceringen (inklusive första och sista dagen)
+          const daysDiff = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1);
+          
+          // Beräkna inlägg per dag med en decimal
+          summary.posts_per_day = Math.round((account.posts.length / daysDiff) * 10) / 10;
+        } else {
+          // Om inga giltiga datum kunde hittas, anta att allt publicerades på samma dag
+          summary.posts_per_day = account.posts.length;
+        }
+      }
+    }
+    
     // Beräkna övriga valda fält
     for (const field of selectedFields) {
       // Hoppa över fält som redan är beräknade
-      if (['likes', 'comments', 'shares', 'saves', 'follows', 'engagement_total', 'engagement_total_extended'].includes(field)) {
+      if (['likes', 'comments', 'shares', 'saves', 'follows', 
+           'engagement_total', 'engagement_total_extended',
+           'post_count', 'posts_per_day'].includes(field)) {
         continue;
       }
       
@@ -212,10 +256,15 @@ const AccountView = ({ data, selectedFields }) => {
           totals.engagement_total_extended = totalLikes + totalComments + totalShares + totalSaves + totalFollows;
         }
         
+        // Beräkna totalt antal publiceringar
+        if (selectedFields.includes('post_count')) {
+          totals.post_count = data.length;
+        }
+        
         // Summera övriga värden
         selectedFields.forEach(field => {
           // Hoppa över fält som redan är beräknade eller inte ska ha total
-          if (['likes', 'comments', 'shares', 'saves', 'follows', 'engagement_total', 'engagement_total_extended'].includes(field) || 
+          if (['likes', 'comments', 'shares', 'saves', 'follows', 'engagement_total', 'engagement_total_extended', 'post_count'].includes(field) || 
               FIELDS_WITHOUT_TOTALS.includes(field)) {
             return;
           }

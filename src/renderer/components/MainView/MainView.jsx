@@ -34,7 +34,9 @@ const ACCOUNT_VIEW_AVAILABLE_FIELDS = {
   'comments': 'Kommentarer',
   'shares': 'Delningar',
   'saves': 'Sparade',
-  'follows': 'Följare'
+  'follows': 'Följare',
+  'post_count': 'Antal publiceringar',
+  'posts_per_day': 'Antal publiceringar per dag'
 };
 
 const ValueSelector = ({ availableFields, selectedFields, onSelectionChange }) => (

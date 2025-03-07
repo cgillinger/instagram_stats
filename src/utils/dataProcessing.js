@@ -14,7 +14,9 @@ export const ACCOUNT_VIEW_FIELDS = {
   'comments': 'Kommentarer',
   'shares': 'Delningar',
   'saves': 'Sparade',
-  'follows': 'Följare'
+  'follows': 'Följare',
+  'post_count': 'Antal publiceringar',
+  'posts_per_day': 'Antal publiceringar per dag'
 };
 
 // Displaynamn för tillgängliga fält i per-inlägg vyn
@@ -131,6 +133,28 @@ export const summarizeByAccount = (data, selectedFields) => {
         summary.average_reach = account.posts.length > 0 
           ? Math.round(totalReach / account.posts.length) 
           : 0;
+      } else if (field === 'post_count') {
+        // Antal publiceringar är antalet posts
+        summary.post_count = account.posts.length;
+      } else if (field === 'posts_per_day') {
+        // Beräkna antal publiceringar per dag
+        if (account.posts.length === 0) {
+          summary.posts_per_day = 0;
+        } else {
+          const dates = account.posts
+            .map(post => post.publish_time || post['Publiceringstid'])
+            .filter(date => date)
+            .map(date => new Date(date));
+          
+          if (dates.length > 0) {
+            const minDate = new Date(Math.min(...dates));
+            const maxDate = new Date(Math.max(...dates));
+            const daysDiff = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1);
+            summary.posts_per_day = Math.round((account.posts.length / daysDiff) * 10) / 10; // Avrundat till 1 decimal
+          } else {
+            summary.posts_per_day = account.posts.length; // Om inga datum finns, anta allt på en dag
+          }
+        }
       } else {
         // Summera övriga värden
         summary[field] = account.posts.reduce((sum, post) => {
