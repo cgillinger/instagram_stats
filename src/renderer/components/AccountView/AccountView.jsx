@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, FileDown, FileSpreadsheet, Calculator } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, FileDown, FileSpreadsheet, Calculator, ExternalLink } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Button } from '../ui/button';
 import { 
@@ -308,6 +308,23 @@ const AccountView = ({ data, selectedFields }) => {
     }));
   };
 
+  // Hantera klick på extern länk
+  const handleExternalLink = (username) => {
+    try {
+      if (!username || username === '-') return;
+      
+      const instagramUrl = `https://www.instagram.com/${username}/`;
+      
+      if (window.electronAPI?.openExternalLink) {
+        window.electronAPI.openExternalLink(instagramUrl);
+      } else {
+        window.open(instagramUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error) {
+      console.error('Failed to open external link:', error);
+    }
+  };
+
   // Hämta ikon för sortering
   const getSortIcon = (columnKey) => {
     if (sortConfig.key !== columnKey) return <ArrowUpDown className="h-4 w-4 ml-1" />;
@@ -391,6 +408,14 @@ const AccountView = ({ data, selectedFields }) => {
       const formattedAccount = {
         'Kontonamn': getValue(account, 'account_name') || 'Unknown'
       };
+      
+      // Lägg till Instagram-URL om användarnamn finns
+      const username = getValue(account, 'account_username');
+      if (username && username !== '-') {
+        formattedAccount['Instagram URL'] = `https://www.instagram.com/${username}/`;
+      } else {
+        formattedAccount['Instagram URL'] = '';
+      }
       
       for (const field of selectedFields) {
         // För export använder vi fortfarande ACCOUNT_VIEW_FIELDS från dataProcessing
@@ -480,6 +505,9 @@ const AccountView = ({ data, selectedFields }) => {
                   </div>
                 </TableHead>
               ))}
+              <TableHead className="w-12 text-center">
+                Länk
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -496,6 +524,8 @@ const AccountView = ({ data, selectedFields }) => {
                     : ''}
                 </TableCell>
               ))}
+              {/* Tomt utrymme för länkkolumnen i totalsumma-raden */}
+              <TableCell></TableCell>
             </TableRow>
 
             {/* Datarader */}
@@ -509,6 +539,18 @@ const AccountView = ({ data, selectedFields }) => {
                     {formatValue(getValue(account, field))}
                   </TableCell>
                 ))}
+                <TableCell className="text-center">
+                  {getValue(account, 'account_username') && getValue(account, 'account_username') !== '-' && (
+                    <button
+                      onClick={() => handleExternalLink(getValue(account, 'account_username'))}
+                      className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800"
+                      title="Öppna i webbläsare"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      <span className="sr-only">Öppna Instagram</span>
+                    </button>
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
