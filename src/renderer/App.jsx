@@ -52,6 +52,7 @@ function App() {
               )}
               <MainView 
                 data={processedData.rows} 
+                meta={processedData.meta}
                 onDataProcessed={handleDataProcessed}
               />
             </>

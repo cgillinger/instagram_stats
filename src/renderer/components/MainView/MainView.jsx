@@ -4,7 +4,7 @@ import { Card, CardContent } from '../ui/card';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
-import { Settings } from 'lucide-react';
+import { Settings, CalendarIcon } from 'lucide-react';
 import AccountView from '../AccountView';
 import PostView from '../PostView';
 import { FileUploader } from '../FileUploader';
@@ -60,11 +60,14 @@ const ValueSelector = ({ availableFields, selectedFields, onSelectionChange }) =
   </div>
 );
 
-const MainView = ({ data, onDataProcessed }) => {
+const MainView = ({ data, meta, onDataProcessed }) => {
   const [selectedFields, setSelectedFields] = useState([]);
   const [activeView, setActiveView] = useState('account');
   const [showColumnMapping, setShowColumnMapping] = useState(false);
   const [showFileUploader, setShowFileUploader] = useState(false);
+
+  // Kontrollera om det finns datumintervall
+  const hasDateRange = meta?.dateRange?.startDate && meta?.dateRange?.endDate;
 
   // Hämta rätt fält baserat på aktiv vy
   const getAvailableFields = () => {
@@ -165,6 +168,15 @@ const MainView = ({ data, onDataProcessed }) => {
           <TabsTrigger value="account">Per konto</TabsTrigger>
           <TabsTrigger value="post">Per inlägg</TabsTrigger>
         </TabsList>
+
+        {hasDateRange && (
+          <div className="mt-4 p-2 border border-gray-200 rounded-md bg-gray-50 flex items-center">
+            <CalendarIcon className="h-4 w-4 mr-2 text-gray-500" />
+            <span className="text-sm text-gray-700">
+              Visar statistik för perioden {meta.dateRange.startDate} till {meta.dateRange.endDate}
+            </span>
+          </div>
+        )}
 
         <TabsContent value="account">
           <AccountView data={data} selectedFields={selectedFields} />

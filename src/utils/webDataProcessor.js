@@ -21,6 +21,27 @@ const NON_SUMMARIZABLE_COLUMNS = Object.values(DEFAULT_MAPPINGS).filter(col => [
 ].includes(col));
 
 /**
+ * Formaterar datum till svenskt format (YYYY-MM-DD)
+ */
+function formatSwedishDate(date) {
+  if (!date) return '';
+  
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    
+    return d.toLocaleDateString('sv-SE', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  } catch (error) {
+    console.error('Fel vid datumformatering:', error);
+    return '';
+  }
+}
+
+/**
  * Identifierar och hanterar dubletter baserat på Post ID
  * Använder getValue för att stödja olika språk
  */
@@ -132,6 +153,9 @@ export async function processInstagramData(csvContent, columnMappings) {
           let perKonto = {};
           let perPost = [];
           
+          // Hitta datumintervall
+          let allDates = [];
+          
           // Bearbeta varje unik rad
           filteredData.forEach(row => {
             // Mappa kolumnnamn till interna namn
@@ -145,6 +169,19 @@ export async function processInstagramData(csvContent, columnMappings) {
             // Använd getValue för att säkerställa att account_name finns
             const accountName = getValue(mappedRow, 'account_name') || 'Okänt konto';
             const accountUsername = getValue(mappedRow, 'account_username') || '-';
+            
+            // Samla in publiceringsdatum för datumintervall
+            const publishDate = getValue(mappedRow, 'publish_time') || 
+                               getValue(mappedRow, 'date') || 
+                               mappedRow['Publiceringstid'] || 
+                               mappedRow['Datum'];
+            
+            if (publishDate) {
+              const date = new Date(publishDate);
+              if (!isNaN(date.getTime())) {
+                allDates.push(date);
+              }
+            }
             
             // Skapa konto-objekt om det inte finns
             if (!perKonto[accountID]) {
@@ -174,6 +211,19 @@ export async function processInstagramData(csvContent, columnMappings) {
             perPost.push(mappedRow);
           });
           
+          // Beräkna datumintervall
+          let dateRange = { startDate: null, endDate: null };
+          
+          if (allDates.length > 0) {
+            const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
+            const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
+            
+            dateRange = {
+              startDate: formatSwedishDate(minDate),
+              endDate: formatSwedishDate(maxDate)
+            };
+          }
+          
           // Beräkna totalt engagemang för varje konto
           Object.values(perKonto).forEach(account => {
             account.engagement_total = 
@@ -196,7 +246,8 @@ export async function processInstagramData(csvContent, columnMappings) {
                 rowCount: perPost.length,
                 meta: {
                   processedAt: new Date(),
-                  stats: stats
+                  stats: stats,
+                  dateRange: dateRange
                 }
               });
             })
