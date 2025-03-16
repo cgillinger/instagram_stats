@@ -5,7 +5,11 @@
  * webbläsarens API:er för att hantera och bearbeta data.
  */
 import Papa from 'papaparse';
-import { saveProcessedData } from './webStorageService';
+import { 
+  saveProcessedData, 
+  getAccountViewData, 
+  getPostViewData
+} from './webStorageService';
 import { DEFAULT_MAPPINGS } from '../renderer/components/ColumnMappingEditor/columnMappingService';
 import { getValue, normalizeText } from '../renderer/components/ColumnMappingEditor/columnMappingService';
 
@@ -42,17 +46,54 @@ function formatSwedishDate(date) {
 }
 
 /**
+ * Räknar unika konton i en datamängd
+ * @param {Array} data - Datamängden att analysera
+ * @returns {number} - Antal unika konton
+ */
+function countUniqueAccounts(data) {
+  if (!Array.isArray(data) || data.length === 0) return 0;
+  
+  // Använd Set för att hålla unika account_id
+  const uniqueAccountIds = new Set();
+  
+  data.forEach(row => {
+    const accountId = getValue(row, 'account_id');
+    if (accountId) {
+      uniqueAccountIds.add(String(accountId));
+    }
+  });
+  
+  return uniqueAccountIds.size;
+}
+
+/**
  * Identifierar och hanterar dubletter baserat på Post ID
  * Använder getValue för att stödja olika språk
  */
-function handleDuplicates(data, columnMappings) {
+function handleDuplicates(data, columnMappings, existingData = []) {
   // Skapa en map för att hålla reda på unika post_ids
   const uniquePosts = new Map();
   const duplicateIds = new Set();
   let duplicateCount = 0;
-  const totalRows = data.length;
+  const totalRows = data.length + existingData.length;
   
-  // Först identifiera och räkna dubletter
+  // Lägg först in befintliga data (om det finns)
+  if (existingData && existingData.length > 0) {
+    existingData.forEach(row => {
+      const postId = getValue(row, 'post_id');
+      
+      if (postId) {
+        const postIdStr = String(postId);
+        uniquePosts.set(postIdStr, row);
+      } else {
+        // Om ingen post_id finns, använd hela raden som unik nyckel
+        const rowStr = JSON.stringify(row);
+        uniquePosts.set(rowStr, row);
+      }
+    });
+  }
+  
+  // Gå igenom nya data och identifiera dubletter
   data.forEach(row => {
     // Använd getValue för att hitta post_id oavsett vilket språk CSV-filen är på
     const postId = getValue(row, 'post_id');
@@ -121,11 +162,69 @@ function mapColumnNames(row, columnMappings) {
 }
 
 /**
- * Bearbetar CSV-innehåll och returnerar aggregerad data
+ * Analyserar CSV-filen och returnerar basinformation (utan att bearbeta data)
  */
-export async function processInstagramData(csvContent, columnMappings) {
+export async function analyzeCSVFile(csvContent) {
   return new Promise((resolve, reject) => {
     try {
+      Papa.parse(csvContent, {
+        header: true,
+        preview: 5, // Analysera bara några rader för snabbhet
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (!results.data || results.data.length === 0) {
+            reject(new Error('Ingen data hittades i CSV-filen.'));
+            return;
+          }
+          
+          // Uppskatta totalt antal rader (approximativt)
+          const linesCount = csvContent.split('\n').length - 1; // -1 för rubrikraden
+          
+          resolve({
+            columns: Object.keys(results.data[0]).length,
+            columnNames: Object.keys(results.data[0]),
+            rows: linesCount,
+            sampleData: results.data.slice(0, 3), // Några exempel
+            fileSize: csvContent.length,
+            fileSizeKB: Math.round(csvContent.length / 1024)
+          });
+        },
+        error: (error) => {
+          console.error('Fel vid CSV-analys:', error);
+          reject(error);
+        }
+      });
+    } catch (error) {
+      console.error('Oväntat fel vid analys:', error);
+      reject(error);
+    }
+  });
+}
+
+/**
+ * Bearbetar CSV-innehåll och returnerar aggregerad data
+ */
+export async function processInstagramData(csvContent, columnMappings, shouldMergeWithExisting = false, fileName = 'Instagram CSV') {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Om vi ska slå samman med befintlig data, hämta den först
+      let existingPostData = [];
+      let existingAccountData = [];
+      
+      if (shouldMergeWithExisting) {
+        try {
+          existingPostData = await getPostViewData() || [];
+          existingAccountData = await getAccountViewData() || [];
+          console.log('Befintlig data hämtad för sammanslagning:', {
+            postCount: existingPostData.length,
+            accountCount: existingAccountData.length
+          });
+        } catch (error) {
+          console.warn('Kunde inte hämta befintlig data:', error);
+          // Fortsätt ändå med tomma arrayer
+        }
+      }
+      
       Papa.parse(csvContent, {
         header: true,
         dynamicTyping: true,
@@ -141,8 +240,16 @@ export async function processInstagramData(csvContent, columnMappings) {
             columns: Object.keys(results.data[0]).length
           });
           
+          // Räkna unika konton i den nya filen INNAN sammanslagningen
+          // Detta löser problem 2 - räkna unika konton per fil
+          const uniqueAccountsInFile = countUniqueAccounts(results.data);
+          
           // Identifiera och filtrera dubletter med tillgång till kolumnmappningar
-          const { filteredData, stats } = handleDuplicates(results.data, columnMappings);
+          const { filteredData, stats } = handleDuplicates(
+            results.data, 
+            columnMappings,
+            shouldMergeWithExisting ? existingPostData : []
+          );
           
           console.log('Dubbletthantering klar:', {
             originalRows: stats.totalRows,
@@ -156,8 +263,43 @@ export async function processInstagramData(csvContent, columnMappings) {
           // Hitta datumintervall
           let allDates = [];
           
-          // Bearbeta varje unik rad
+          // Om vi sammanfogar med befintlig data, starta med den
+          if (shouldMergeWithExisting && existingPostData.length > 0) {
+            perPost = [...existingPostData];
+            
+            // Extrahera datumintervall från befintlig data
+            existingPostData.forEach(post => {
+              const publishDate = getValue(post, 'publish_time') || 
+                                 getValue(post, 'date') || 
+                                 post['Publiceringstid'] || 
+                                 post['Datum'];
+              
+              if (publishDate) {
+                const date = new Date(publishDate);
+                if (!isNaN(date.getTime())) {
+                  allDates.push(date);
+                }
+              }
+            });
+            
+            // Skapa konton från befintlig data
+            existingAccountData.forEach(account => {
+              const accountID = account.account_id;
+              if (accountID) {
+                perKonto[accountID] = { ...account };
+              }
+            });
+          }
+          
+          // Bearbeta varje unik rad från nya data
           filteredData.forEach(row => {
+            // Hoppa över om raden redan finns i perPost (duplicate check)
+            // Detta är en extra säkerhet utöver handleDuplicates
+            const postId = getValue(row, 'post_id');
+            if (postId && perPost.some(p => getValue(p, 'post_id') === postId)) {
+              return;
+            }
+            
             // Mappa kolumnnamn till interna namn
             const mappedRow = mapColumnNames(row, columnMappings);
             
@@ -230,13 +372,31 @@ export async function processInstagramData(csvContent, columnMappings) {
               (account.likes || 0) + 
               (account.comments || 0) + 
               (account.shares || 0);
+              
+            account.engagement_total_extended =
+              (account.likes || 0) + 
+              (account.comments || 0) + 
+              (account.shares || 0) +
+              (account.saves || 0) +
+              (account.follows || 0);
           });
           
           // Konvertera till arrays
           const perKontoArray = Object.values(perKonto);
           
+          // Skapa filmetadataobjekt för att spåra uppladdad fil
+          const fileInfo = {
+            filename: fileName || 'Instagram CSV', // Använd det riktiga filnamnet
+            originalFileName: fileName || 'Instagram CSV', // Spara originalfilnamnet för dublettkontroll
+            rowCount: results.data.length,
+            duplicatesRemoved: stats.duplicates,
+            // Använd det räknade värdet för unika konton i filen istället för perKontoArray.length
+            accountCount: uniqueAccountsInFile,
+            dateRange
+          };
+          
           // Spara data via webStorageService
-          saveProcessedData(perKontoArray, perPost)
+          saveProcessedData(perKontoArray, perPost, fileInfo)
             .then(() => {
               console.log('Bearbetning klar! Data sparad i webbläsaren.');
               resolve({
@@ -247,7 +407,9 @@ export async function processInstagramData(csvContent, columnMappings) {
                 meta: {
                   processedAt: new Date(),
                   stats: stats,
-                  dateRange: dateRange
+                  dateRange: dateRange,
+                  isMergedData: shouldMergeWithExisting,
+                  filename: fileName
                 }
               });
             })

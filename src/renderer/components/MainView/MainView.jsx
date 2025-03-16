@@ -4,12 +4,23 @@ import { Card, CardContent } from '../ui/card';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
-import { Settings, CalendarIcon } from 'lucide-react';
+import { 
+  Settings, 
+  CalendarIcon, 
+  Upload, 
+  Plus,
+  Database,
+  UploadCloud,
+  RefreshCw
+} from 'lucide-react';
 import AccountView from '../AccountView';
 import PostView from '../PostView';
 import { FileUploader } from '../FileUploader';
 import { ColumnMappingEditor } from '../ColumnMappingEditor';
+import { MemoryIndicator } from '../MemoryIndicator/MemoryIndicator';
+import { LoadedFilesInfo } from '../LoadedFilesInfo/LoadedFilesInfo';
 import { ACCOUNT_VIEW_FIELDS, POST_VIEW_FIELDS } from '@/utils/dataProcessing';
+import { getMemoryUsageStats, getUploadedFilesMetadata } from '@/utils/webStorageService';
 
 // Definiera specifika fält för per-inlägg-vyn
 const POST_VIEW_AVAILABLE_FIELDS = {
@@ -65,6 +76,11 @@ const MainView = ({ data, meta, onDataProcessed }) => {
   const [activeView, setActiveView] = useState('account');
   const [showColumnMapping, setShowColumnMapping] = useState(false);
   const [showFileUploader, setShowFileUploader] = useState(false);
+  const [showAddMoreData, setShowAddMoreData] = useState(false);
+  const [showNewAnalysis, setShowNewAnalysis] = useState(false);
+  const [memoryUsage, setMemoryUsage] = useState(null);
+  const [filesMetadata, setFilesMetadata] = useState([]);
+  const [dataManagementTabActive, setDataManagementTabActive] = useState(false);
 
   // Kontrollera om det finns datumintervall
   const hasDateRange = meta?.dateRange?.startDate && meta?.dateRange?.endDate;
@@ -74,13 +90,24 @@ const MainView = ({ data, meta, onDataProcessed }) => {
     return activeView === 'account' ? ACCOUNT_VIEW_AVAILABLE_FIELDS : POST_VIEW_AVAILABLE_FIELDS;
   };
 
+  // Ladda minnesanvändning och filmetadata
   useEffect(() => {
-    if (data) {
-      setSelectedFields([]);
-    }
-  }, [data]);
+    const loadMemoryAndFiles = async () => {
+      try {
+        const memory = await getMemoryUsageStats();
+        setMemoryUsage(memory);
+        
+        const files = await getUploadedFilesMetadata();
+        setFilesMetadata(files);
+      } catch (error) {
+        console.error('Fel vid laddning av minnesanvändning:', error);
+      }
+    };
+    
+    loadMemoryAndFiles();
+  }, []);
 
-  // Ny useEffect för att hantera vybyten
+  // Ny useEffect för att hantera vybyten - behåller bara redan valda fält som är giltiga i nya vyn
   useEffect(() => {
     const availableFields = Object.keys(getAvailableFields());
     setSelectedFields(prev => prev.filter(field => availableFields.includes(field)));
@@ -89,6 +116,51 @@ const MainView = ({ data, meta, onDataProcessed }) => {
   const handleDataUploaded = (newData) => {
     onDataProcessed(newData);
     setShowFileUploader(false);
+    setShowAddMoreData(false);
+    setShowNewAnalysis(false);
+    
+    // Uppdatera minnesinformation och filmetadata
+    const loadMemoryAndFiles = async () => {
+      try {
+        const memory = await getMemoryUsageStats();
+        setMemoryUsage(memory);
+        
+        const files = await getUploadedFilesMetadata();
+        setFilesMetadata(files);
+      } catch (error) {
+        console.error('Fel vid uppdatering av minnesanvändning:', error);
+      }
+    };
+    
+    loadMemoryAndFiles();
+  };
+
+  const handleClearAll = () => {
+    // Återställ app till ursprungsläget efter att data rensats
+    window.location.reload();
+  };
+
+  const handleMemoryUpdate = (stats) => {
+    setMemoryUsage(stats);
+  };
+
+  const handleFileMetadataUpdate = async () => {
+    try {
+      const files = await getUploadedFilesMetadata();
+      setFilesMetadata(files);
+      
+      // Uppdatera minnesanvändning samtidigt
+      const memory = await getMemoryUsageStats();
+      setMemoryUsage(memory);
+    } catch (error) {
+      console.error('Fel vid uppdatering av filmetadata:', error);
+    }
+  };
+  
+  // Återställ data-funktion - startar en helt ny analys
+  const handleNewAnalysis = () => {
+    // Visa FileUploader-komponenten med flagga att det är en ny analys
+    setShowNewAnalysis(true);
   };
 
   if (showFileUploader) {
@@ -96,6 +168,26 @@ const MainView = ({ data, meta, onDataProcessed }) => {
       <FileUploader 
         onDataProcessed={handleDataUploaded}
         onCancel={() => setShowFileUploader(false)}
+      />
+    );
+  }
+  
+  if (showAddMoreData) {
+    return (
+      <FileUploader 
+        onDataProcessed={handleDataUploaded}
+        onCancel={() => setShowAddMoreData(false)}
+        existingData={data}
+      />
+    );
+  }
+  
+  if (showNewAnalysis) {
+    return (
+      <FileUploader 
+        onDataProcessed={handleDataUploaded}
+        onCancel={() => setShowNewAnalysis(false)}
+        isNewAnalysis={true}  // Indikera att detta är en ny analys
       />
     );
   }
@@ -108,7 +200,8 @@ const MainView = ({ data, meta, onDataProcessed }) => {
             onClick={() => setShowFileUploader(true)}
             className="mx-auto"
           >
-            Läs in ny CSV
+            <UploadCloud className="w-4 h-4 mr-2" />
+            Läs in CSV
           </Button>
         </div>
       </div>
@@ -135,10 +228,25 @@ const MainView = ({ data, meta, onDataProcessed }) => {
         <h1 className="text-2xl font-bold">Instagram Statistik</h1>
         <div className="flex space-x-2">
           <Button 
-            onClick={() => setShowFileUploader(true)}
+            onClick={() => setShowAddMoreData(true)}
+            variant="outline"
+            className="text-green-600"
+            disabled={memoryUsage && !memoryUsage.canAddMoreData}
+            title={
+              memoryUsage && !memoryUsage.canAddMoreData 
+                ? "Kan inte lägga till mer data - Minnet är fullt" 
+                : "Lägg till mer data"
+            }
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Lägg till data
+          </Button>
+          <Button 
+            onClick={handleNewAnalysis}
             variant="outline"
           >
-            Läs in ny CSV
+            <RefreshCw className="w-4 h-4 mr-1" />
+            Återställ data
           </Button>
           <Button 
             variant="outline" 
@@ -149,6 +257,60 @@ const MainView = ({ data, meta, onDataProcessed }) => {
           </Button>
         </div>
       </div>
+      
+      {/* Visa minnesindikator alltid i huvudvyn */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <MemoryIndicator onUpdate={handleMemoryUpdate} showDetails={false} />
+        </div>
+        <div className="lg:col-span-1">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Database className="w-4 h-4 mr-2 text-muted-foreground" />
+                  <span className="text-lg font-medium">Datakällor</span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setDataManagementTabActive(!dataManagementTabActive)}
+                >
+                  {dataManagementTabActive ? "Dölj" : "Visa"}
+                </Button>
+              </div>
+              {dataManagementTabActive && (
+                <div className="mt-2">
+                  <div className="text-sm text-muted-foreground mb-2">
+                    {filesMetadata.length === 0 
+                      ? "Inga filer laddade ännu" 
+                      : `${filesMetadata.length} fil${filesMetadata.length !== 1 ? 'er' : ''} laddade`}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => setDataManagementTabActive(false)}
+                  >
+                    Visa detaljer
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+      
+      {/* Visa datahanteringssektion om den är aktiv */}
+      {dataManagementTabActive && (
+        <div className="mb-6">
+          <LoadedFilesInfo 
+            onRefresh={handleFileMetadataUpdate}
+            onClearAll={handleClearAll}
+            canClearData={true}
+          />
+        </div>
+      )}
 
       <Card>
         <CardContent className="pt-6">
