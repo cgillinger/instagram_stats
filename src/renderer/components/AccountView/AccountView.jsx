@@ -486,6 +486,8 @@ const AccountView = ({ data, selectedFields }) => {
         <Table>
           <TableHeader>
             <TableRow>
+              {/* Lägg till kolumnrubrik för radnummer */}
+              <TableHead className="w-10 text-center">#</TableHead>
               <TableHead 
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleSort('account_name')}
@@ -513,6 +515,8 @@ const AccountView = ({ data, selectedFields }) => {
           <TableBody>
             {/* Totalsumma-rad */}
             <TableRow className="bg-primary/5 border-b-2 border-primary/20">
+              {/* Tomt utrymme för radnummerkolumnen i totalsumma-raden */}
+              <TableCell></TableCell>
               <TableCell className="font-semibold flex items-center">
                 <Calculator className="w-4 h-4 mr-2 text-primary" />
                 <span className="text-primary">Totalt</span>
@@ -529,8 +533,12 @@ const AccountView = ({ data, selectedFields }) => {
             </TableRow>
 
             {/* Datarader */}
-            {paginatedData.map((account) => (
+            {paginatedData.map((account, index) => (
               <TableRow key={`${getValue(account, 'account_id')}-${getValue(account, 'account_name')}`}>
+                {/* Visa radnummer i stigande ordning */}
+                <TableCell className="text-center font-medium">
+                  {(currentPage - 1) * pageSize + index + 1}
+                </TableCell>
                 <TableCell className="font-medium">
                   {getValue(account, 'account_name') || 'Unknown'}
                 </TableCell>

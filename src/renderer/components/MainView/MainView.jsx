@@ -4,6 +4,7 @@ import { Card, CardContent } from '../ui/card';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { 
   Settings, 
   CalendarIcon, 
@@ -11,7 +12,8 @@ import {
   Plus,
   Database,
   UploadCloud,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import AccountView from '../AccountView';
 import PostView from '../PostView';
@@ -50,6 +52,28 @@ const ACCOUNT_VIEW_AVAILABLE_FIELDS = {
   'posts_per_day': 'Antal publiceringar per dag'
 };
 
+// Bekräftelsedialog-komponent
+const ConfirmationDialog = ({ isOpen, onConfirm, onCancel, message }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+        <h3 className="text-lg font-medium mb-4">Bekräfta åtgärd</h3>
+        <p className="mb-6">{message}</p>
+        <div className="flex justify-end space-x-2">
+          <Button variant="outline" onClick={onCancel}>
+            Avbryt
+          </Button>
+          <Button onClick={onConfirm}>
+            OK
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ValueSelector = ({ availableFields, selectedFields, onSelectionChange }) => (
   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
     {Object.entries(availableFields).map(([key, label]) => (
@@ -81,6 +105,7 @@ const MainView = ({ data, meta, onDataProcessed }) => {
   const [memoryUsage, setMemoryUsage] = useState(null);
   const [filesMetadata, setFilesMetadata] = useState([]);
   const [dataManagementTabActive, setDataManagementTabActive] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   // Kontrollera om det finns datumintervall
   const hasDateRange = meta?.dateRange?.startDate && meta?.dateRange?.endDate;
@@ -157,10 +182,20 @@ const MainView = ({ data, meta, onDataProcessed }) => {
     }
   };
   
-  // Återställ data-funktion - startar en helt ny analys
+  // Visar bekräftelsedialog för "Återställ data"
   const handleNewAnalysis = () => {
-    // Visa FileUploader-komponenten med flagga att det är en ny analys
+    setResetDialogOpen(true);
+  };
+  
+  // Hanterar bekräftelse att starta ny analys
+  const handleResetConfirm = () => {
+    setResetDialogOpen(false);
     setShowNewAnalysis(true);
+  };
+  
+  // Hanterar avbryt av återställning
+  const handleResetCancel = () => {
+    setResetDialogOpen(false);
   };
 
   if (showFileUploader) {
@@ -224,6 +259,14 @@ const MainView = ({ data, meta, onDataProcessed }) => {
 
   return (
     <div className="container mx-auto p-4 space-y-6">
+      {/* Egen bekräftelsedialog för "Återställ data" */}
+      <ConfirmationDialog 
+        isOpen={resetDialogOpen}
+        onConfirm={handleResetConfirm}
+        onCancel={handleResetCancel}
+        message="Detta rensar alla CSV och börjar om från början."
+      />
+      
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Instagram Statistik</h1>
         <div className="flex space-x-2">

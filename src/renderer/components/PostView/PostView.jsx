@@ -286,6 +286,8 @@ const PostView = ({ data, selectedFields }) => {
         <Table>
           <TableHeader>
             <TableRow>
+              {/* Lägg till kolumnrubrik för radnummer */}
+              <TableHead className="w-10 text-center">#</TableHead>
               <TableHead 
                 className="w-1/3 cursor-pointer hover:bg-muted/50"
                 onClick={() => handleSort('description')}
@@ -329,6 +331,10 @@ const PostView = ({ data, selectedFields }) => {
           <TableBody>
             {paginatedData.map((post, index) => (
               <TableRow key={`post-${index}`}>
+                {/* Visa radnummer i stigande ordning */}
+                <TableCell className="text-center font-medium">
+                  {(currentPage - 1) * pageSize + index + 1}
+                </TableCell>
                 <TableCell className="max-w-md">
                   <div className="flex flex-col">
                     <span className="text-sm text-muted-foreground line-clamp-2">
