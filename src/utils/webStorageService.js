@@ -13,7 +13,7 @@ const STORAGE_KEYS = {
   COLUMN_MAPPINGS: 'instagram_stats_column_mappings',
   PROCESSED_DATA: 'instagram_stats_processed_data',
   ACCOUNT_VIEW_DATA: 'instagram_stats_account_view',
-  POST_VIEW_DATA: 'instagram_stats_post_view',
+  POST_VIEW_DATA: 'instagram_stats_post_view', // Används nu endast som fallback
   LAST_EXPORT_PATH: 'instagram_stats_last_export_path',
   UPLOADED_FILES_METADATA: 'instagram_stats_uploaded_files',
   MEMORY_USAGE: 'instagram_stats_memory_usage',
@@ -25,7 +25,8 @@ const DB_CONFIG = {
   version: 1,
   stores: {
     csvData: { keyPath: 'id', autoIncrement: true },
-    fileMetadata: { keyPath: 'id', autoIncrement: true }
+    fileMetadata: { keyPath: 'id', autoIncrement: true },
+    accountData: { keyPath: 'id', autoIncrement: true } // Ny store för kontodata
   }
 };
 
@@ -52,6 +53,11 @@ const openDatabase = () => {
       // Lägg till store för filmetadata om den inte finns
       if (!db.objectStoreNames.contains('fileMetadata')) {
         db.createObjectStore('fileMetadata', { keyPath: 'id', autoIncrement: true });
+      }
+      
+      // Lägg till store för kontodata (account view data)
+      if (!db.objectStoreNames.contains('accountData')) {
+        db.createObjectStore('accountData', { keyPath: 'id', autoIncrement: true });
       }
     };
     
@@ -154,15 +160,15 @@ const getFromIndexedDB = async (storeName, key) => {
 };
 
 /**
- * Sparar konfigurationsdata i localStorage
+ * Sparar konfigurationsdata i localStorage med felhantering
  */
 const saveConfig = (key, data) => {
   try {
     localStorage.setItem(key, JSON.stringify(data));
-    return true;
+    return { success: true };
   } catch (error) {
     console.error(`Fel vid sparande av ${key}:`, error);
-    return false;
+    return { success: false, error };
   }
 };
 
@@ -278,23 +284,37 @@ const saveColumnMappings = async (mappings) => {
 };
 
 /**
- * Sparar bearbetad data till localStorage eller IndexedDB beroende på storlek
+ * Sparar bearbetad data - anpassad för att alltid använda IndexedDB för postViewData
+ * för att undvika problem med localStorage-kvoter.
  */
 const saveProcessedData = async (accountViewData, postViewData, fileInfo = null) => {
   try {
     // Spara account view data
-    saveConfig(STORAGE_KEYS.ACCOUNT_VIEW_DATA, accountViewData);
-    
-    // Spara post view data
-    const postViewString = JSON.stringify(postViewData);
-    if (postViewString.length < 5000000) { // ~5MB gräns
-      saveConfig(STORAGE_KEYS.POST_VIEW_DATA, postViewData);
-    } else {
-      // För större datamängder, använd IndexedDB
-      await saveToIndexedDB('csvData', { 
+    // Försök först med localStorage, men använd IndexedDB som fallback
+    const accountResult = saveConfig(STORAGE_KEYS.ACCOUNT_VIEW_DATA, accountViewData);
+    if (!accountResult.success && accountResult.error instanceof DOMException && 
+        accountResult.error.name === 'QuotaExceededError') {
+      // Använd IndexedDB för account view data om localStorage-kvoten överskrids
+      console.log('localStorage kvot överskriden för account data, använder IndexedDB istället.');
+      await clearStoreInIndexedDB('accountData');  // Rensa befintlig data först
+      await saveToIndexedDB('accountData', { 
         timestamp: Date.now(), 
-        postViewData: postViewData 
+        accountViewData: accountViewData 
       });
+    }
+    
+    // Spara post view data - ALLTID i IndexedDB för att undvika localStorage-kvoter
+    await clearStoreInIndexedDB('csvData');  // Rensa befintlig data för att undvika duplicering
+    await saveToIndexedDB('csvData', { 
+      timestamp: Date.now(), 
+      postViewData: postViewData 
+    });
+    
+    // Ta bort eventuell gammal post view data från localStorage
+    try {
+      localStorage.removeItem(STORAGE_KEYS.POST_VIEW_DATA);
+    } catch (e) {
+      // Ignorera eventuella fel vid rensning av localStorage
     }
     
     // Om filinformation tillhandahålls, spara metadata om uppladdad fil
@@ -313,7 +333,7 @@ const saveProcessedData = async (accountViewData, postViewData, fileInfo = null)
 };
 
 /**
- * Sparar metadata om uppladdad fil
+ * Sparar metadata om uppladdad fil - förbättrad med fel-tolerans
  */
 const addFileMetadata = async (fileInfo) => {
   try {
@@ -326,8 +346,19 @@ const addFileMetadata = async (fileInfo) => {
       uploadedAt: new Date().toISOString()
     }];
     
-    // Spara uppdaterad lista
-    saveConfig(STORAGE_KEYS.UPLOADED_FILES_METADATA, updatedFiles);
+    // Försök spara i localStorage först
+    const result = saveConfig(STORAGE_KEYS.UPLOADED_FILES_METADATA, updatedFiles);
+    
+    // Om localStorage-kvoten överskrids, använd IndexedDB som fallback
+    if (!result.success && result.error instanceof DOMException && 
+        result.error.name === 'QuotaExceededError') {
+      console.log('localStorage kvot överskriden för filmetadata, använder IndexedDB istället.');
+      await clearStoreInIndexedDB('fileMetadata');
+      await saveToIndexedDB('fileMetadata', { 
+        timestamp: Date.now(),
+        files: updatedFiles 
+      });
+    }
     
     return true;
   } catch (error) {
@@ -337,10 +368,28 @@ const addFileMetadata = async (fileInfo) => {
 };
 
 /**
- * Hämtar metadata om uppladdade filer
+ * Hämtar metadata om uppladdade filer med stöd för både localStorage och IndexedDB
  */
 const getUploadedFilesMetadata = async () => {
-  return getConfig(STORAGE_KEYS.UPLOADED_FILES_METADATA, []);
+  // Försök hämta från localStorage först
+  const localData = getConfig(STORAGE_KEYS.UPLOADED_FILES_METADATA);
+  if (localData && Array.isArray(localData) && localData.length > 0) {
+    return localData;
+  }
+  
+  // Fallback till IndexedDB
+  try {
+    const dbData = await getFromIndexedDB('fileMetadata');
+    if (dbData && dbData.length > 0) {
+      // Returnera den senaste (sortera efter timestamp)
+      const sortedData = dbData.sort((a, b) => b.timestamp - a.timestamp);
+      return sortedData[0].files || [];
+    }
+  } catch (error) {
+    console.warn('Kunde inte hämta filmetadata från IndexedDB:', error);
+  }
+  
+  return [];
 };
 
 /**
@@ -348,15 +397,34 @@ const getUploadedFilesMetadata = async () => {
  */
 const removeFileMetadata = async (fileIndex) => {
   try {
-    // Hämta befintlig filmetadata
-    const existingFiles = await getUploadedFilesMetadata();
+    // Försök hämta från localStorage först
+    let existingFiles = getConfig(STORAGE_KEYS.UPLOADED_FILES_METADATA, []);
+    let fromLocalStorage = true;
+    
+    // Om den inte finns i localStorage, försök IndexedDB
+    if (!existingFiles || existingFiles.length === 0) {
+      const dbData = await getFromIndexedDB('fileMetadata');
+      if (dbData && dbData.length > 0) {
+        const sortedData = dbData.sort((a, b) => b.timestamp - a.timestamp);
+        existingFiles = sortedData[0].files || [];
+        fromLocalStorage = false;
+      }
+    }
     
     // Ta bort filen med angivet index
     if (fileIndex >= 0 && fileIndex < existingFiles.length) {
       existingFiles.splice(fileIndex, 1);
       
-      // Spara uppdaterad lista
-      saveConfig(STORAGE_KEYS.UPLOADED_FILES_METADATA, existingFiles);
+      // Spara uppdaterad lista på rätt ställe
+      if (fromLocalStorage) {
+        saveConfig(STORAGE_KEYS.UPLOADED_FILES_METADATA, existingFiles);
+      } else {
+        await clearStoreInIndexedDB('fileMetadata');
+        await saveToIndexedDB('fileMetadata', { 
+          timestamp: Date.now(),
+          files: existingFiles 
+        });
+      }
       return true;
     }
     
@@ -372,7 +440,9 @@ const removeFileMetadata = async (fileIndex) => {
  */
 const clearFileMetadata = async () => {
   try {
-    saveConfig(STORAGE_KEYS.UPLOADED_FILES_METADATA, []);
+    // Rensa från både localStorage och IndexedDB
+    localStorage.removeItem(STORAGE_KEYS.UPLOADED_FILES_METADATA);
+    await clearStoreInIndexedDB('fileMetadata');
     return true;
   } catch (error) {
     console.error('Fel vid rensning av filmetadata:', error);
@@ -433,6 +503,7 @@ const clearAllData = async () => {
     // Rensa IndexedDB
     await clearStoreInIndexedDB('csvData');
     await clearStoreInIndexedDB('fileMetadata');
+    await clearStoreInIndexedDB('accountData');
     
     return true;
   } catch (error) {
@@ -442,32 +513,58 @@ const clearAllData = async () => {
 };
 
 /**
- * Hämtar bearbetad account view data
+ * Hämtar bearbetad account view data - stödjer nu både localStorage och IndexedDB
  */
-const getAccountViewData = () => {
-  return getConfig(STORAGE_KEYS.ACCOUNT_VIEW_DATA, []);
+const getAccountViewData = async () => {
+  // Försök hämta från localStorage först
+  const localData = getConfig(STORAGE_KEYS.ACCOUNT_VIEW_DATA);
+  if (localData) return localData;
+  
+  // Fallback till IndexedDB för account view data
+  try {
+    const dbData = await getFromIndexedDB('accountData');
+    if (dbData && dbData.length > 0) {
+      // Returnera den senaste (sortera efter timestamp)
+      const sortedData = dbData.sort((a, b) => b.timestamp - a.timestamp);
+      return sortedData[0].accountViewData || [];
+    }
+  } catch (error) {
+    console.warn('Kunde inte hämta account view data från IndexedDB:', error);
+  }
+  
+  return [];
 };
 
 /**
- * Hämtar bearbetad post view data
+ * Hämtar bearbetad post view data - nu alltid från IndexedDB
  */
 const getPostViewData = async () => {
   try {
-    // Försök hämta från localStorage först
-    const localData = getConfig(STORAGE_KEYS.POST_VIEW_DATA);
-    if (localData) return localData;
-    
-    // Annars hämta från IndexedDB
+    // Hämta från IndexedDB
     const dbData = await getFromIndexedDB('csvData');
     if (dbData && dbData.length > 0) {
       // Returnera den senaste (sortera efter timestamp)
       const sortedData = dbData.sort((a, b) => b.timestamp - a.timestamp);
-      return sortedData[0].postViewData;
+      return sortedData[0].postViewData || [];
     }
+    
+    // Fallback till localStorage om data saknas i IndexedDB
+    // Detta är bara för bakåtkompatibilitet
+    const localData = getConfig(STORAGE_KEYS.POST_VIEW_DATA);
+    if (localData) return localData;
     
     return [];
   } catch (error) {
     console.error('Fel vid hämtning av bearbetad data:', error);
+    
+    // Sista försök - kolla localStorage även vid fel
+    try {
+      const localData = getConfig(STORAGE_KEYS.POST_VIEW_DATA);
+      if (localData) return localData;
+    } catch (e) {
+      // Ignorera eventuella fel
+    }
+    
     return [];
   }
 };
