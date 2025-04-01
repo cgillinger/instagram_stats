@@ -282,7 +282,7 @@ const PostView = ({ data, selectedFields }) => {
         </div>
       </div>
 
-      <div className="rounded-md overflow-x-auto">
+      <div className="rounded-md overflow-x-auto bg-white">
         <Table>
           <TableHeader>
             <TableRow>
