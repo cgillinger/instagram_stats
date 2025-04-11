@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import AccountView from '../AccountView';
 import PostView from '../PostView';
+import PostTypeView from '../PostTypeView';
 import { FileUploader } from '../FileUploader';
 import { ColumnMappingEditor } from '../ColumnMappingEditor';
 import { MemoryIndicator } from '../MemoryIndicator/MemoryIndicator';
@@ -372,6 +373,7 @@ const MainView = ({ data, meta, onDataProcessed }) => {
         <TabsList>
           <TabsTrigger value="account">Per konto</TabsTrigger>
           <TabsTrigger value="post">Per inlägg</TabsTrigger>
+          <TabsTrigger value="post_type">Per inläggstyp</TabsTrigger>
         </TabsList>
 
         {hasDateRange && (
@@ -389,6 +391,10 @@ const MainView = ({ data, meta, onDataProcessed }) => {
 
         <TabsContent value="post">
           <PostView data={data} selectedFields={selectedFields} />
+        </TabsContent>
+        
+        <TabsContent value="post_type">
+          <PostTypeView data={data} selectedFields={selectedFields} />
         </TabsContent>
       </Tabs>
     </div>
