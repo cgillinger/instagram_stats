@@ -67,11 +67,11 @@ function countUniqueAccounts(data) {
 }
 
 /**
- * Identifierar och hanterar dubletter baserat på Post ID
+ * Identifierar och hanterar dubletter baserat på Post ID och fil-identifierare
  * Använder getValue för att stödja olika språk
  */
-function handleDuplicates(data, columnMappings, existingData = []) {
-  // Skapa en map för att hålla reda på unika post_ids
+function handleDuplicates(data, columnMappings, existingData = [], currentFileIdentifier = null) {
+  // Skapa en map för att hålla reda på unika post_ids + fil-identifierare
   const uniquePosts = new Map();
   const duplicateIds = new Set();
   let duplicateCount = 0;
@@ -81,10 +81,13 @@ function handleDuplicates(data, columnMappings, existingData = []) {
   if (existingData && existingData.length > 0) {
     existingData.forEach(row => {
       const postId = getValue(row, 'post_id');
+      // Hämta fil-identifierare för befintlig data
+      const fileIdentifier = row._file_identifier || '';
       
       if (postId) {
-        const postIdStr = String(postId);
-        uniquePosts.set(postIdStr, row);
+        // Skapa en sammansatt nyckel av post_id och fil-identifierare
+        const compositeKey = `${postId}|${fileIdentifier}`;
+        uniquePosts.set(compositeKey, row);
       } else {
         // Om ingen post_id finns, använd hela raden som unik nyckel
         const rowStr = JSON.stringify(row);
@@ -99,13 +102,15 @@ function handleDuplicates(data, columnMappings, existingData = []) {
     const postId = getValue(row, 'post_id');
     
     if (postId) {
-      const postIdStr = String(postId);
+      // För nya data, använd den aktuella fil-identifieraren
+      const compositeKey = `${postId}|${currentFileIdentifier}`;
       
-      if (uniquePosts.has(postIdStr)) {
+      if (uniquePosts.has(compositeKey)) {
+        // Detta skulle vara en dubblett inom samma fil, vilket vi vill filtrera bort
         duplicateCount++;
-        duplicateIds.add(postIdStr);
+        duplicateIds.add(compositeKey);
       } else {
-        uniquePosts.set(postIdStr, row);
+        uniquePosts.set(compositeKey, row);
       }
     } else {
       // Om ingen post_id finns, använd hela raden som unik nyckel
@@ -225,6 +230,10 @@ export async function processInstagramData(csvContent, columnMappings, shouldMer
         }
       }
       
+      // Generera en unik fil-identifierare baserad på filnamn och aktuell tidsstämpel
+      // Ta bort icke-alfanumeriska tecken för att säkerställa att det är en ren identifierare
+      const fileIdentifier = `${fileName.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`;
+      
       Papa.parse(csvContent, {
         header: true,
         dynamicTyping: true,
@@ -248,7 +257,8 @@ export async function processInstagramData(csvContent, columnMappings, shouldMer
           const { filteredData, stats } = handleDuplicates(
             results.data, 
             columnMappings,
-            shouldMergeWithExisting ? existingPostData : []
+            shouldMergeWithExisting ? existingPostData : [],
+            fileIdentifier // Skicka fil-identifieraren för duplettkontroll
           );
           
           console.log('Dubbletthantering klar:', {
@@ -296,12 +306,16 @@ export async function processInstagramData(csvContent, columnMappings, shouldMer
             // Hoppa över om raden redan finns i perPost (duplicate check)
             // Detta är en extra säkerhet utöver handleDuplicates
             const postId = getValue(row, 'post_id');
-            if (postId && perPost.some(p => getValue(p, 'post_id') === postId)) {
+            // Uppdaterad kontroll som använder både post_id och fil-identifierare
+            if (postId && perPost.some(p => getValue(p, 'post_id') === postId && p._file_identifier === fileIdentifier)) {
               return;
             }
             
             // Mappa kolumnnamn till interna namn
             const mappedRow = mapColumnNames(row, columnMappings);
+            
+            // Lägg till fil-identifierare till den mappade raden
+            mappedRow._file_identifier = fileIdentifier;
             
             // Använd getValue för att få accountID för att säkerställa att vi använder rätt fält
             const accountID = getValue(mappedRow, 'account_id') || 'unknown';
@@ -388,6 +402,7 @@ export async function processInstagramData(csvContent, columnMappings, shouldMer
           const fileInfo = {
             filename: fileName || 'Instagram CSV', // Använd det riktiga filnamnet
             originalFileName: fileName || 'Instagram CSV', // Spara originalfilnamnet för dublettkontroll
+            fileIdentifier: fileIdentifier, // Inkludera fil-identifieraren i metadata
             rowCount: results.data.length,
             duplicatesRemoved: stats.duplicates,
             // Använd det räknade värdet för unika konton i filen istället för perKontoArray.length
@@ -409,7 +424,8 @@ export async function processInstagramData(csvContent, columnMappings, shouldMer
                   stats: stats,
                   dateRange: dateRange,
                   isMergedData: shouldMergeWithExisting,
-                  filename: fileName
+                  filename: fileName,
+                  fileIdentifier: fileIdentifier // Inkludera fil-identifieraren i returnerad metadata
                 }
               });
             })
